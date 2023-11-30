@@ -1,31 +1,18 @@
-#include "config/core.h"
-
 #include <GLFW/glfw3.h>
+#include <config/constants.h>
 #include <cstddef>
 #include <cstdio>
+#include <fstream>
 #include <glad/glad.h>
 #include <iostream>
+#include <shader/Shader.h>
+#include <sstream>
+#include <string>
 
-const char *triangles_vertex_shader_code = " #version 330 core\n"
-                                           "layout (location = 0) in vec3 aPos;\n"
-                                           "void main() {\n"
-                                           "gl_Position = vec4(aPos, 1.0);\n"
-                                           "}\n";
+void c_speed(GLFWwindow *window, int width, int height);
+void processInput(GLFWwindow *window);
 
-const char *triangles_fragment_shader_code = "#version 330 core\n"
-                                             "out vec4 FragColor;\n"
-                                             "void main() {\n"
-                                             "FragColor = vec4(0.3, 0.2, 0.1, 1.0);\n"
-                                             "}\n";
-
-void framebuffer_size_callback(GLFWwindow *window, int width, int height);
-
-// Input Handling
-void processInput(GLFWwindow *window) {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-		glfwSetWindowShouldClose(window, true);
-	}
-}
+static float aspect_ratio = static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT);
 
 int main(int argc, char **argv) {
 	glfwInit();
@@ -35,7 +22,7 @@ int main(int argc, char **argv) {
 	glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GL_FALSE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-	GLFWwindow *window = glfwCreateWindow(800, 600, "FirstOpenGLProject", NULL, NULL);
+	GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Fractalllllllls", NULL, NULL);
 	if (window == NULL) {
 		printf("Failed to create GLFW Window.\n");
 		glfwTerminate();
@@ -49,111 +36,86 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	glViewport(0, 0, 800, 600);
+	glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetFramebufferSizeCallback(window, c_speed);
 
-	float vertices[] = {
-	    0.5f,
-	    0.5f,
-	    0.0f, // top right
-	    0.5f,
-	    -0.5f,
-	    0.0f, // bottom right
-	    -0.5f,
-	    -0.5f,
-	    0.0f, // bottom left
-	    -0.5f,
-	    0.5f,
-	    0.0f // top left
-	};
-	unsigned int indices[] = {
-	    // note that we start from 0!
-	    0,
-	    1,
-	    3, // first triangle
-	    1,
-	    2,
-	    3 // second triangle
-	};
+	// just drawing a square (two triangles) on the whole screen
+	const float vertices[] = {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f};
 
-	unsigned int VAO;
+	unsigned int VAO, VBO;
 	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+
 	glBindVertexArray(VAO);
 
-	unsigned int EBO;
-	glGenBuffers(1, &EBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	unsigned int VBO;
-	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	unsigned int vertex_shader;
-	vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, &triangles_vertex_shader_code, NULL);
-	glCompileShader(vertex_shader);
-
-	int  success;
-	char infoLog[512];
-	glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-
-	if (!success) {
-		glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog);
-		std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-		return -1;
-	}
-
-	unsigned int fragment_shader;
-	fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, &triangles_fragment_shader_code, NULL);
-	glCompileShader(fragment_shader);
-
-	glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-
-	if (!success) {
-		glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog);
-		std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-		return -1;
-	}
-
-	unsigned int shader_program;
-	shader_program = glCreateProgram();
-
-	glAttachShader(shader_program, vertex_shader);
-	glAttachShader(shader_program, fragment_shader);
-	glLinkProgram(shader_program);
-
-	glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-
-	if (!success) {
-		glGetProgramInfoLog(shader_program, 512, NULL, infoLog);
-		std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-		return -1;
-	}
-
-	glUseProgram(shader_program);
-	glBindVertexArray(VAO);
-	glDeleteShader(vertex_shader);
-	glDeleteShader(fragment_shader);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
 	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind the VBO
+	glBindVertexArray(0);             // Unbind the VAO
+
+	Shader shader("fractal_vertex.glsl", "fractal_fragment.glsl");
+
+	float displacement[2] = {0.f, 0.f};
+	float c[2]            = {0.38f, 0.28f};
+	float z[2]            = {0.f, 0.f};
+	float scale           = 0.75f;
+
+	const float scale_factor = 0.1f;
+	const float c_speed      = 0.001f;
 
 	while (!glfwWindowShouldClose(window)) {
 		// Input
 		processInput(window);
 
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			displacement[1] += 0.01f / scale;
+		} else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			displacement[1] -= 0.01f / scale;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+			displacement[0] += 0.01f / scale;
+		} else if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+			displacement[0] -= 0.01f / scale;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			c[0] += c_speed / scale;
+		} else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			c[0] -= c_speed / scale;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			c[1] += c_speed / scale;
+		} else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			c[1] -= c_speed / scale;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+			scale *= (1.0f + scale_factor);
+		} else if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+			scale /= (1.0f + scale_factor);
+		}
+
 		// Rendering
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		glUseProgram(shader_program);
+		shader.use();
 
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		shader.set_vec("displacement", displacement, 2);
+		shader.set_vec("z", z, 2);
+		shader.set_vec("c", c, 2);
+		shader.set_float("scale", scale);
+		shader.set_float("aspect_ratio", aspect_ratio);
+
+		glBindVertexArray(VAO);           // Re-bind the VAO
+		glDrawArrays(GL_TRIANGLES, 0, 6); // Draw 6 vertices (2 triangles)
 
 		// Check and Events + Buf Swapping
 		glfwSwapBuffers(window);
@@ -164,6 +126,13 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+void c_speed(GLFWwindow *window, int width, int height) {
+	aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
 	glViewport(0, 0, width, height);
+}
+
+void processInput(GLFWwindow *window) {
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+		glfwSetWindowShouldClose(window, true);
+	}
 }
